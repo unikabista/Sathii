@@ -5,6 +5,10 @@ export interface SathiProfile {
   titles?: string[]
   type?: string
   resumeText?: string
+  targetRoles?: string
+  workTypes?: string[]
+  city?: string
+  country?: string
 }
 
 export interface SathiToday {

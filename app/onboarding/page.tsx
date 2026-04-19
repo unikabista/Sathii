@@ -3,9 +3,17 @@ import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 
-type Step = 'intro' | 'resume' | 'who' | 'vibe' | 'goal'
+type Step = 'intro' | 'resume' | 'who' | 'vibe' | 'roles' | 'location' | 'goal'
 type UserType = 'Student' | 'Recent Grad' | 'Career Changer' | 'Experienced Pro' | ''
 type Mood = 'drained' | 'okay' | 'good' | 'motivated' | ''
+
+const COUNTRIES = [
+  { label: 'United States', value: 'us' },
+  { label: 'United Kingdom', value: 'gb' },
+  { label: 'Canada', value: 'ca' },
+  { label: 'Australia', value: 'au' },
+  { label: 'India', value: 'in' },
+]
 
 const MOOD_GOALS: Record<string, number> = {
   drained: 2,
@@ -30,9 +38,13 @@ export default function Onboarding() {
   const [resumeText, setResumeText] = useState('')
   const [isDragging, setIsDragging] = useState(false)
   const [isProcessing, setIsProcessing] = useState(false)
+  const [targetRoles, setTargetRoles] = useState('')
+  const [workTypes, setWorkTypes] = useState<string[]>([])
+  const [locationCity, setLocationCity] = useState('')
+  const [country, setCountry] = useState('us')
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const steps: Step[] = ['intro', 'resume', 'who', 'vibe', 'goal']
+  const steps: Step[] = ['intro', 'resume', 'who', 'vibe', 'roles', 'location', 'goal']
   const stepIndex = steps.indexOf(step)
   const progress = ((stepIndex + 1) / steps.length) * 100
 
@@ -70,9 +82,22 @@ export default function Onboarding() {
     if (file) handleFile(file)
   }
 
+  function toggleWorkType(wt: string) {
+    setWorkTypes((prev) =>
+      prev.includes(wt) ? prev.filter((t) => t !== wt) : [...prev, wt]
+    )
+  }
+
   function handleGoalFinish() {
     const existing = JSON.parse(localStorage.getItem('sathi_profile') || '{}')
-    localStorage.setItem('sathi_profile', JSON.stringify({ ...existing, type: userType }))
+    localStorage.setItem('sathi_profile', JSON.stringify({
+      ...existing,
+      type: userType,
+      targetRoles: targetRoles.trim() || undefined,
+      workTypes: workTypes.length ? workTypes : undefined,
+      city: locationCity.trim() || undefined,
+      country,
+    }))
     localStorage.setItem('sathi_today', JSON.stringify({
       mood,
       goal,
@@ -265,6 +290,102 @@ export default function Onboarding() {
                   </motion.button>
                 ))}
               </div>
+            </motion.div>
+          )}
+
+          {step === 'roles' && (
+            <motion.div
+              key="roles"
+              variants={slideVariants}
+              initial="enter"
+              animate="center"
+              exit="exit"
+              transition={{ duration: 0.35 }}
+              className="text-center"
+            >
+              <div className="text-5xl mb-4">🎯</div>
+              <h2 className="text-3xl font-bold text-[#2D2D2D] mb-2">What roles are you targeting?</h2>
+              <p className="text-[#6B7280] mb-8">e.g. Software Engineer, Frontend Developer</p>
+              <input
+                type="text"
+                value={targetRoles}
+                onChange={(e) => setTargetRoles(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && targetRoles.trim() && next()}
+                placeholder="Type your target roles..."
+                className="w-full border-2 border-[#E5E7EB] rounded-2xl px-5 py-4 text-[#2D2D2D] text-lg focus:outline-none focus:border-[#7CB987] bg-white mb-6"
+              />
+              <motion.button
+                whileHover={{ scale: 1.03 }}
+                whileTap={{ scale: 0.97 }}
+                onClick={next}
+                disabled={!targetRoles.trim()}
+                className="bg-[#7CB987] text-white px-14 py-4 rounded-full text-lg font-semibold hover:bg-[#5a9768] transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                Continue
+              </motion.button>
+            </motion.div>
+          )}
+
+          {step === 'location' && (
+            <motion.div
+              key="location"
+              variants={slideVariants}
+              initial="enter"
+              animate="center"
+              exit="exit"
+              transition={{ duration: 0.35 }}
+              className="text-center"
+            >
+              <div className="text-5xl mb-4">📍</div>
+              <h2 className="text-3xl font-bold text-[#2D2D2D] mb-2">Where do you want to work?</h2>
+              <p className="text-[#6B7280] mb-6">Select all that apply.</p>
+              <div className="grid grid-cols-3 gap-3 mb-6">
+                {([
+                  { key: 'remote', label: 'Remote', emoji: '🌍' },
+                  { key: 'hybrid', label: 'Hybrid', emoji: '🏙️' },
+                  { key: 'onsite', label: 'Onsite', emoji: '🏢' },
+                ]).map(({ key, label, emoji }) => (
+                  <motion.button
+                    key={key}
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => toggleWorkType(key)}
+                    className={`py-5 rounded-2xl border-2 flex flex-col items-center gap-2 transition-all ${
+                      workTypes.includes(key)
+                        ? 'border-[#7CB987] bg-[#E8F5E9]'
+                        : 'border-[#E5E7EB] bg-white hover:border-[#7CB987]'
+                    }`}
+                  >
+                    <span className="text-3xl">{emoji}</span>
+                    <span className="font-medium text-[#2D2D2D]">{label}</span>
+                  </motion.button>
+                ))}
+              </div>
+              <input
+                type="text"
+                value={locationCity}
+                onChange={(e) => setLocationCity(e.target.value)}
+                placeholder={workTypes.length === 1 && workTypes[0] === 'remote' ? 'City? (optional)' : 'City?'}
+                className="w-full border-2 border-[#E5E7EB] rounded-2xl px-5 py-4 text-[#2D2D2D] text-base focus:outline-none focus:border-[#7CB987] bg-white mb-4"
+              />
+              <select
+                value={country}
+                onChange={(e) => setCountry(e.target.value)}
+                className="w-full border-2 border-[#E5E7EB] rounded-2xl px-5 py-4 text-[#2D2D2D] text-base focus:outline-none focus:border-[#7CB987] bg-white mb-6 appearance-none cursor-pointer"
+              >
+                {COUNTRIES.map(({ label, value }) => (
+                  <option key={value} value={value}>{label}</option>
+                ))}
+              </select>
+              <motion.button
+                whileHover={{ scale: 1.03 }}
+                whileTap={{ scale: 0.97 }}
+                onClick={next}
+                disabled={workTypes.length === 0}
+                className="bg-[#7CB987] text-white px-14 py-4 rounded-full text-lg font-semibold hover:bg-[#5a9768] transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                Continue
+              </motion.button>
             </motion.div>
           )}
 

@@ -2,6 +2,14 @@
 import { motion } from 'framer-motion'
 import { Job } from '@/lib/jobs'
 
+function formatSalary(min?: number, max?: number): string | null {
+  if (!min && !max) return null
+  const fmt = (n: number) => `$${Math.round(n / 1000)}k`
+  if (min && max) return `${fmt(min)} – ${fmt(max)}`
+  if (min) return `${fmt(min)}+`
+  return `up to ${fmt(max!)}`
+}
+
 interface JobCardProps {
   job: Job
   onApply: () => void
@@ -26,6 +34,11 @@ export function JobCard({ job, onApply, onResume }: JobCardProps) {
             <p className="text-[#7CB987] text-sm mt-2 flex items-center gap-1">
               <span>✦</span>
               <span>{job.matchReason}</span>
+            </p>
+          )}
+          {formatSalary(job.salaryMin, job.salaryMax) && (
+            <p className="text-[#5a9768] text-sm mt-1 font-medium">
+              💰 {formatSalary(job.salaryMin, job.salaryMax)}
             </p>
           )}
           {job.description && (

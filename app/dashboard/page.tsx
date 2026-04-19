@@ -23,8 +23,7 @@ export default function Dashboard() {
     setProfile(p)
     setToday(t)
 
-    const query = p.skills?.join(' ') || p.titles?.[0] || p.type || 'software engineer'
-    fetchJobs(query).then((fetched) => {
+    fetchJobs(p).then((fetched) => {
       const withApplied = fetched.map((j) => ({ ...j, applied: t.applied.includes(j.id) }))
       setJobs(withApplied)
       setLoading(false)
@@ -76,6 +75,21 @@ export default function Dashboard() {
             {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
           </p>
           <h1 className="text-3xl font-bold text-[#2D2D2D] mb-1">Your jobs for today</h1>
+          {((profile.workTypes?.length ?? 0) > 0 || profile.city) && (
+            <div className="flex flex-wrap gap-2 mt-2 mb-1">
+              {profile.workTypes?.map((wt) => (
+                <span key={wt} className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-[#E8F5E9] text-[#5a9768] text-sm font-medium">
+                  {wt === 'remote' ? '🌍' : wt === 'hybrid' ? '🏙️' : '🏢'}
+                  {' '}{wt.charAt(0).toUpperCase() + wt.slice(1)}
+                </span>
+              ))}
+              {profile.city && (
+                <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-[#E8F5E9] text-[#5a9768] text-sm font-medium">
+                  📍 {profile.city}
+                </span>
+              )}
+            </div>
+          )}
           <p className="text-[#6B7280]">
             {loading ? 'Finding your best matches...' : `${jobs.length} opportunities, handpicked for you`}
           </p>

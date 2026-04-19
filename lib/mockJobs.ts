@@ -10,6 +10,8 @@ export interface Job {
   applied: boolean
   description: string
   logo?: string
+  salaryMin?: number
+  salaryMax?: number
 }
 
 export const MOCK_JOBS: Job[] = [
