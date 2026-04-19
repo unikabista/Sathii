@@ -10,10 +10,11 @@ interface Message {
 export function SathiChat() {
   const [open, setOpen] = useState(false)
   const [messages, setMessages] = useState<Message[]>([
-    { role: 'assistant', content: "Hey! I'm Sathi 🌱 How are you feeling about your job search today?" }
+    { role: 'assistant', content: "Hi, I'm Sathi 👋 How are you feeling about your job search today?" }
   ])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
   const bottomRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -27,17 +28,25 @@ export function SathiChat() {
     setMessages(newMessages)
     setInput('')
     setLoading(true)
+    setError('')
 
     try {
-      const res = await fetch('/api/claude', {
+      const res = await fetch('/api/gemini', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ type: 'chat', messages: newMessages }),
       })
       const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Chat request failed')
       setMessages([...newMessages, { role: 'assistant', content: data.message }])
-    } catch {
-      setMessages([...newMessages, { role: 'assistant', content: "I'm here for you! (Couldn't connect right now)" }])
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "I'm here for you! (Couldn't connect right now)"
+      setError(message)
+      setMessages([
+        ...newMessages,
+        { role: 'assistant', content: `I couldn't respond properly just now. ${message}` },
+      ])
     }
     setLoading(false)
   }
@@ -49,9 +58,20 @@ export function SathiChat() {
         whileHover={{ scale: 1.1 }}
         whileTap={{ scale: 0.95 }}
         onClick={() => setOpen(true)}
-        className="fixed bottom-6 right-6 bg-[#7CB987] text-white w-14 h-14 rounded-full shadow-lg flex items-center justify-center text-2xl z-40"
+        aria-label="Open Sathi chat"
+        className="fixed bottom-6 right-6 h-16 w-16 overflow-hidden rounded-full border-2 border-white bg-[#7CB987] shadow-lg z-40"
       >
-        🌱
+        <video
+          autoPlay
+          loop
+          muted
+          playsInline
+          preload="auto"
+          className="h-full w-full object-cover"
+        >
+          <source src="/chatbot-icon.mp4" type="video/mp4" />
+        </video>
+        <span className="sr-only">Sathi chat</span>
       </motion.button>
 
       <AnimatePresence>
@@ -72,6 +92,11 @@ export function SathiChat() {
             </div>
 
             <div className="flex-1 overflow-y-auto p-4 space-y-3">
+              {error && (
+                <div className="rounded-2xl border border-[#F2C9A6] bg-[#FFF5EB] px-4 py-3 text-sm text-[#8A4B14]">
+                  AI unavailable: {error}
+                </div>
+              )}
               {messages.map((m, i) => (
                 <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                   <div className={`max-w-[85%] rounded-2xl px-4 py-2 text-sm ${
