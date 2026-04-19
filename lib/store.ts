@@ -1,10 +1,27 @@
 export interface SathiProfile {
   name?: string
+  email?: string
+  password?: string
   skills?: string[]
   experience?: string
   titles?: string[]
+  projects?: string[]
+  certifications?: string[]
+  extraSkills?: string[]
+  extraProjects?: string[]
+  extraExperience?: string
+  preferredRoles?: string[]
+  suggestedRoles?: { title: string; reason: string; match: number }[]
+  parserDebug?: {
+    parser: string
+    extractedTextLength?: number
+    cvParseStatus?: string
+    cvParseError?: string
+    usedFallback?: boolean
+  }
   type?: string
   resumeText?: string
+  resumeMimeType?: string
 }
 
 export interface SathiToday {

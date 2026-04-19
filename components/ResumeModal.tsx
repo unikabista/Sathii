@@ -1,15 +1,18 @@
 'use client'
+'use client'
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Job } from '@/lib/jobs'
+import { SathiProfile } from '@/lib/store'
 
 interface ResumeModalProps {
   job: Job
   resumeText: string
+  profile: SathiProfile
   onClose: () => void
 }
 
-export function ResumeModal({ job, resumeText, onClose }: ResumeModalProps) {
+export function ResumeModal({ job, resumeText, profile, onClose }: ResumeModalProps) {
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState('')
   const [copied, setCopied] = useState(false)
@@ -25,6 +28,14 @@ export function ResumeModal({ job, resumeText, onClose }: ResumeModalProps) {
           resumeText: resumeText || 'No resume provided — generate a general tailored resume template.',
           jobTitle: job.title,
           jobDesc: job.description,
+          skills: profile.skills ?? [],
+          projects: profile.projects ?? [],
+          certifications: profile.certifications ?? [],
+          experience: profile.experience ?? '',
+          extraSkills: profile.extraSkills ?? [],
+          extraProjects: profile.extraProjects ?? [],
+          extraExperience: profile.extraExperience ?? '',
+          preferredRoles: profile.preferredRoles ?? [],
         }),
       })
       const data = await res.json()

@@ -1,18 +1,10 @@
 'use client'
-import { useState, useRef } from 'react'
+import { useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { motion, AnimatePresence } from 'framer-motion'
+import { AnimatePresence, motion } from 'framer-motion'
+import { SathiProfile } from '@/lib/store'
 
-type Step = 'intro' | 'resume' | 'who' | 'vibe' | 'goal'
-type UserType = 'Student' | 'Recent Grad' | 'Career Changer' | 'Experienced Pro' | ''
-type Mood = 'drained' | 'okay' | 'good' | 'motivated' | ''
-
-const MOOD_GOALS: Record<string, number> = {
-  drained: 2,
-  okay: 3,
-  good: 4,
-  motivated: 5,
-}
+type Step = 'intro' | 'resume' | 'account' | 'certifications'
 
 const slideVariants = {
   enter: { opacity: 0, x: 40 },
@@ -20,101 +12,132 @@ const slideVariants = {
   exit: { opacity: 0, x: -40 },
 }
 
-function MoodFace({ mood }: { mood: Exclude<Mood, ''> }) {
-  const stroke = '#3A4144'
-  const mouth = {
-    drained: 'M46 62 Q56 54 66 62',
-    okay: 'M47 60 L65 60',
-    good: 'M45 57 Q56 66 67 57',
-    motivated: 'M43 56 Q56 70 69 56',
-  }[mood]
+function splitList(value: string) {
+  return value
+    .split(/[,\n]/)
+    .map((item) => item.trim())
+    .filter(Boolean)
+}
 
-  const eyebrow = mood === 'drained'
+function arrayBufferToBase64(buffer: ArrayBuffer) {
+  let binary = ''
+  const bytes = new Uint8Array(buffer)
+  const chunkSize = 0x8000
 
-  return (
-    <svg
-      viewBox="0 0 112 112"
-      aria-hidden="true"
-      className="h-24 w-24"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-    >
-      <circle cx="56" cy="56" r="42" stroke={stroke} strokeWidth="4" />
-      {eyebrow && <path d="M42 42 L49 39" stroke={stroke} strokeWidth="4" strokeLinecap="round" />}
-      {eyebrow && <path d="M63 39 L70 42" stroke={stroke} strokeWidth="4" strokeLinecap="round" />}
-      <circle cx="47" cy="48" r="4.5" fill={stroke} />
-      <circle cx="65" cy="48" r="4.5" fill={stroke} />
-      <path d={mouth} stroke={stroke} strokeWidth="4" strokeLinecap="round" />
-    </svg>
-  )
+  for (let index = 0; index < bytes.length; index += chunkSize) {
+    const chunk = bytes.subarray(index, index + chunkSize)
+    binary += String.fromCharCode(...chunk)
+  }
+
+  return btoa(binary)
 }
 
 export default function Onboarding() {
   const router = useRouter()
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const [step, setStep] = useState<Step>('intro')
-  const [userType, setUserType] = useState<UserType>('')
-  const [mood, setMood] = useState<Mood>('')
-  const [goal, setGoal] = useState(3)
   const [resumeFile, setResumeFile] = useState<File | null>(null)
   const [resumeText, setResumeText] = useState('')
+  const [resumeMimeType, setResumeMimeType] = useState('')
   const [isDragging, setIsDragging] = useState(false)
   const [isProcessing, setIsProcessing] = useState(false)
-  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [profile, setProfile] = useState<SathiProfile>({})
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [certificationsInput, setCertificationsInput] = useState('')
+  const [extraSkillsInput, setExtraSkillsInput] = useState('')
+  const [extraProjectsInput, setExtraProjectsInput] = useState('')
+  const [extraExperienceInput, setExtraExperienceInput] = useState('')
+  const [error, setError] = useState('')
 
-  const steps: Step[] = ['intro', 'resume', 'who', 'vibe', 'goal']
+  const steps: Step[] = ['intro', 'resume', 'account', 'certifications']
   const stepIndex = steps.indexOf(step)
   const progress = ((stepIndex + 1) / steps.length) * 100
 
   function next() {
-    const idx = steps.indexOf(step)
-    if (idx < steps.length - 1) setStep(steps[idx + 1])
+    const index = steps.indexOf(step)
+    if (index < steps.length - 1) setStep(steps[index + 1])
+  }
+
+  function persistProfile(overrides: Partial<SathiProfile> = {}) {
+    const existing = JSON.parse(localStorage.getItem('sathi_profile') || '{}')
+    const merged = {
+      ...existing,
+      ...profile,
+      ...overrides,
+      email: email.trim(),
+      password,
+      certifications: splitList(certificationsInput),
+      extraSkills: splitList(extraSkillsInput),
+      extraProjects: splitList(extraProjectsInput),
+      extraExperience: extraExperienceInput.trim(),
+      resumeText,
+      resumeMimeType,
+    }
+    localStorage.setItem('sathi_profile', JSON.stringify(merged))
+    setProfile(merged)
+    return merged
   }
 
   async function handleFile(file: File) {
     setResumeFile(file)
+    setResumeMimeType(file.type || 'application/octet-stream')
     setIsProcessing(true)
-    const text = await file.text()
-    setResumeText(text)
+    setError('')
+
+    const rawText = file.type === 'text/plain' ? await file.text() : ''
+    const fileData = arrayBufferToBase64(await file.arrayBuffer())
+    setResumeText(rawText)
 
     try {
-      const res = await fetch('/api/gemini', {
+      const response = await fetch('/api/gemini', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type: 'extract', text }),
+        body: JSON.stringify({
+          type: 'extract-email',
+          text: rawText,
+          fileData,
+          mimeType: file.type || 'application/octet-stream',
+        }),
       })
-      const profile = await res.json()
-      if (!res.ok) throw new Error(profile.error || 'Resume extraction failed')
-      const existing = JSON.parse(localStorage.getItem('sathi_profile') || '{}')
-      localStorage.setItem('sathi_profile', JSON.stringify({ ...existing, ...profile, resumeText: text }))
-    } catch {
-      localStorage.setItem('sathi_profile', JSON.stringify({ resumeText: text, skills: [], experience: '' }))
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.error || 'Could not extract email')
+
+      setEmail(data.email ?? '')
+      setProfile({
+        email: data.email ?? '',
+        parserDebug: data.parserDebug,
+      })
+    } catch (uploadError) {
+      const message =
+        uploadError instanceof Error ? uploadError.message : 'Could not extract email'
+      setError(message)
+      setProfile({
+        parserDebug: {
+          parser: 'email-extract-failed',
+          cvParseError: message,
+        },
+      })
     }
+
     setIsProcessing(false)
     next()
   }
 
-  function handleDrop(e: React.DragEvent) {
-    e.preventDefault()
+  function handleDrop(event: React.DragEvent) {
+    event.preventDefault()
     setIsDragging(false)
-    const file = e.dataTransfer.files[0]
+    const file = event.dataTransfer.files[0]
     if (file) handleFile(file)
   }
 
-  function handleGoalFinish() {
-    const existing = JSON.parse(localStorage.getItem('sathi_profile') || '{}')
-    localStorage.setItem('sathi_profile', JSON.stringify({ ...existing, type: userType }))
-    localStorage.setItem('sathi_today', JSON.stringify({
-      mood,
-      goal,
-      applied: [],
-      date: new Date().toDateString(),
-    }))
-    router.push('/dashboard')
+  function continueToSetup() {
+    persistProfile()
+    router.push('/setup')
   }
 
   return (
     <main className="min-h-screen bg-[#FFFBF0] flex flex-col items-center justify-center px-6">
-      {/* Progress bar */}
       <div className="fixed top-0 left-0 right-0 h-1.5 bg-[#E8F5E9]">
         <motion.div
           className="h-full bg-[#7CB987] rounded-full"
@@ -137,10 +160,10 @@ export default function Onboarding() {
             >
               <div className="text-6xl mb-6">🌱</div>
               <h1 className="text-4xl font-bold text-[#2D2D2D] mb-4">
-                Let&apos;s get to know each other
+                Let&apos;s get you set up
               </h1>
               <p className="text-[#6B7280] text-lg mb-10 leading-relaxed">
-                We&apos;ll ask you a few quick questions so Sathi can find jobs that actually fit — and keep you sane while applying.
+                Start with your resume, confirm your email, create a password, and add any extra details not already listed in the resume.
               </p>
               <motion.button
                 whileHover={{ scale: 1.03 }}
@@ -164,7 +187,9 @@ export default function Onboarding() {
               className="text-center"
             >
               <h2 className="text-3xl font-bold text-[#2D2D2D] mb-2">Upload your resume</h2>
-              <p className="text-[#6B7280] mb-8">We&apos;ll use it to find jobs that match your skills.</p>
+              <p className="text-[#6B7280] mb-8">
+                We&apos;ll try to pull your email from it and keep the resume on file for future applications.
+              </p>
 
               {isProcessing ? (
                 <div className="border-2 border-dashed border-[#7CB987] rounded-2xl p-16 bg-[#E8F5E9] flex flex-col items-center gap-4">
@@ -184,7 +209,10 @@ export default function Onboarding() {
                 </div>
               ) : (
                 <div
-                  onDragOver={(e) => { e.preventDefault(); setIsDragging(true) }}
+                  onDragOver={(event) => {
+                    event.preventDefault()
+                    setIsDragging(true)
+                  }}
                   onDragLeave={() => setIsDragging(false)}
                   onDrop={handleDrop}
                   onClick={() => fileInputRef.current?.click()}
@@ -207,156 +235,139 @@ export default function Onboarding() {
                 type="file"
                 accept=".pdf,.docx,.txt"
                 className="hidden"
-                onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])}
+                onChange={(event) => event.target.files?.[0] && handleFile(event.target.files[0])}
               />
 
-              <button
-                onClick={next}
-                className="mt-6 text-[#6B7280] underline text-sm hover:text-[#7CB987] transition-colors"
-              >
-                Skip for now
-              </button>
+              {!resumeFile && (
+                <button
+                  onClick={next}
+                  className="mt-6 text-[#6B7280] underline text-sm hover:text-[#7CB987] transition-colors"
+                >
+                  Skip for now
+                </button>
+              )}
             </motion.div>
           )}
 
-          {step === 'who' && (
+          {step === 'account' && (
             <motion.div
-              key="who"
+              key="account"
               variants={slideVariants}
               initial="enter"
               animate="center"
               exit="exit"
               transition={{ duration: 0.35 }}
             >
-              <h2 className="text-3xl font-bold text-[#2D2D2D] mb-2 text-center">Who are you?</h2>
-              <p className="text-[#6B7280] text-center mb-8">This helps us tailor your job matches.</p>
-              <div className="grid grid-cols-2 gap-4">
-                {(['Student', 'Recent Grad', 'Career Changer', 'Experienced Pro'] as UserType[]).map((type) => (
-                  <motion.button
-                    key={type}
-                    whileHover={{ scale: 1.03 }}
-                    whileTap={{ scale: 0.97 }}
-                    onClick={() => {
-                      setUserType(type)
-                      setTimeout(next, 200)
-                    }}
-                    className={`p-6 rounded-2xl border-2 text-left transition-all ${
-                      userType === type
-                        ? 'border-[#7CB987] bg-[#E8F5E9] text-[#2D2D2D]'
-                        : 'border-[#E5E7EB] bg-white text-[#2D2D2D] hover:border-[#7CB987]'
-                    }`}
-                  >
-                    <div className="text-3xl mb-2">
-                      {type === 'Student' ? '🎓' : type === 'Recent Grad' ? '🌟' : type === 'Career Changer' ? '🔄' : '💼'}
-                    </div>
-                    <p className="font-semibold text-lg">{type}</p>
-                  </motion.button>
-                ))}
-              </div>
-            </motion.div>
-          )}
-
-          {step === 'vibe' && (
-            <motion.div
-              key="vibe"
-              variants={slideVariants}
-              initial="enter"
-              animate="center"
-              exit="exit"
-              transition={{ duration: 0.35 }}
-              className="text-center"
-            >
-              <h2 className="text-3xl font-bold text-[#2D2D2D] mb-2">How are you feeling today?</h2>
-              <p className="text-[#6B7280] mb-10">No judgment — we&apos;ll set a goal that fits your energy.</p>
-              <div className="grid grid-cols-2 gap-4">
-                {([
-                  { key: 'drained', label: 'Drained' },
-                  { key: 'okay', label: 'Okay' },
-                  { key: 'good', label: 'Good' },
-                  { key: 'motivated', label: 'Motivated' },
-                ] as { key: Exclude<Mood, ''>; label: string }[]).map(({ key, label }) => (
-                  <motion.button
-                    key={key}
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    onClick={() => {
-                      setMood(key)
-                      setGoal(MOOD_GOALS[key])
-                      setTimeout(next, 200)
-                    }}
-                    className={`min-h-[190px] rounded-[2rem] border-[3px] flex flex-col items-center justify-center gap-4 transition-all ${
-                      mood === key
-                        ? 'border-[#7CB987] bg-[#F4FBF5]'
-                        : 'border-[#E5E7EB] bg-white hover:border-[#7CB987]'
-                    }`}
-                  >
-                    <MoodFace mood={key} />
-                    <span className="text-xl font-medium text-[#2D2D2D]">{label}</span>
-                  </motion.button>
-                ))}
-              </div>
-            </motion.div>
-          )}
-
-          {step === 'goal' && (
-            <motion.div
-              key="goal"
-              variants={slideVariants}
-              initial="enter"
-              animate="center"
-              exit="exit"
-              transition={{ duration: 0.35 }}
-              className="text-center"
-            >
-              <div className="text-5xl mb-4">🎯</div>
-              <h2 className="text-3xl font-bold text-[#2D2D2D] mb-2">
-                How many jobs can you apply to today?
-              </h2>
-              <p className="text-[#6B7280] mb-2">
-                Based on your energy, we suggest{' '}
-                <span className="text-[#7CB987] font-semibold">{MOOD_GOALS[mood] ?? 3}</span> — but you choose.
+              <h2 className="text-3xl font-bold text-[#2D2D2D] mb-2 text-center">Create your account</h2>
+              <p className="text-[#6B7280] text-center mb-8">
+                We&apos;ve tried to pull your email from the resume. You can edit it before continuing.
               </p>
-              <div className="bg-white rounded-2xl p-8 my-8 shadow-sm border border-[#E8F5E9]">
-                <div className="text-6xl font-bold text-[#7CB987] mb-6">{goal}</div>
-                <input
-                  type="range"
-                  min={1}
-                  max={10}
-                  value={goal}
-                  onChange={(e) => setGoal(Number(e.target.value))}
-                  className="w-full h-2 bg-[#E8F5E9] rounded-full appearance-none cursor-pointer accent-[#7CB987]"
-                />
-                <div className="flex justify-between text-sm text-[#9CA3AF] mt-2">
-                  <span>1</span>
-                  <span>10</span>
+              <div className="mb-4 rounded-2xl border border-[#E8F5E9] bg-white px-4 py-3 text-left text-sm text-[#6B7280]">
+                Email extraction works in two passes: first we ask Gemini to read the uploaded resume and return the primary email; if that fails and we already have plain text, we fall back to a regex match on the resume text.
+              </div>
+
+              {error && (
+                <div className="mb-4 rounded-2xl border border-[#F2D8BF] bg-[#FFF7EF] px-4 py-3 text-left text-sm text-[#8A4B14]">
+                  Couldn&apos;t extract the email automatically. {error}
                 </div>
+              )}
+
+              <div className="space-y-4">
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
+                  placeholder="Email address"
+                  className="w-full rounded-2xl border border-[#E5E7EB] bg-white px-5 py-4 text-[#2D2D2D] outline-none focus:border-[#7CB987]"
+                />
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                  placeholder="Set a password"
+                  className="w-full rounded-2xl border border-[#E5E7EB] bg-white px-5 py-4 text-[#2D2D2D] outline-none focus:border-[#7CB987]"
+                />
               </div>
-              <p className="text-sm text-[#6B7280] mb-8 italic">
-                {goal <= 2 ? "That's totally enough. Every application counts." :
-                 goal <= 4 ? "Solid goal. You've got this." :
-                 goal <= 7 ? "Ambitious! We'll find the best matches." :
-                 "You're on fire! We'll have plenty of options."}
-              </p>
+
               <motion.button
                 whileHover={{ scale: 1.03 }}
                 whileTap={{ scale: 0.97 }}
-                onClick={handleGoalFinish}
-                className="bg-[#7CB987] text-white px-14 py-4 rounded-full text-lg font-semibold hover:bg-[#5a9768] transition-all"
+                onClick={() => {
+                  persistProfile()
+                  next()
+                }}
+                disabled={!email.trim() || !password.trim()}
+                className="mt-8 w-full bg-[#7CB987] text-white px-14 py-4 rounded-full text-lg font-semibold hover:bg-[#5a9768] transition-all disabled:opacity-50"
               >
-                Find my jobs →
+                Continue
+              </motion.button>
+            </motion.div>
+          )}
+
+          {step === 'certifications' && (
+            <motion.div
+              key="certifications"
+              variants={slideVariants}
+              initial="enter"
+              animate="center"
+              exit="exit"
+              transition={{ duration: 0.35 }}
+            >
+              <h2 className="text-3xl font-bold text-[#2D2D2D] mb-2 text-center">Anything missing from the resume?</h2>
+              <p className="text-[#6B7280] text-center mb-8">
+                Add extra certifications, projects, experience, or skills not already mentioned in the resume.
+              </p>
+
+              <div className="space-y-4">
+                <textarea
+                  value={certificationsInput}
+                  onChange={(event) => setCertificationsInput(event.target.value)}
+                  placeholder="Extra certifications"
+                  className="w-full rounded-2xl border border-[#E5E7EB] bg-white px-5 py-4 text-[#2D2D2D] outline-none focus:border-[#7CB987] min-h-[96px]"
+                />
+                <textarea
+                  value={extraSkillsInput}
+                  onChange={(event) => setExtraSkillsInput(event.target.value)}
+                  placeholder="Extra skills not listed in the resume"
+                  className="w-full rounded-2xl border border-[#E5E7EB] bg-white px-5 py-4 text-[#2D2D2D] outline-none focus:border-[#7CB987] min-h-[96px]"
+                />
+                <textarea
+                  value={extraProjectsInput}
+                  onChange={(event) => setExtraProjectsInput(event.target.value)}
+                  placeholder="Extra projects"
+                  className="w-full rounded-2xl border border-[#E5E7EB] bg-white px-5 py-4 text-[#2D2D2D] outline-none focus:border-[#7CB987] min-h-[96px]"
+                />
+                <textarea
+                  value={extraExperienceInput}
+                  onChange={(event) => setExtraExperienceInput(event.target.value)}
+                  placeholder="Extra experience not mentioned in the resume"
+                  className="w-full rounded-2xl border border-[#E5E7EB] bg-white px-5 py-4 text-[#2D2D2D] outline-none focus:border-[#7CB987] min-h-[120px]"
+                />
+              </div>
+
+              <motion.button
+                whileHover={{ scale: 1.03 }}
+                whileTap={{ scale: 0.97 }}
+                onClick={continueToSetup}
+                className="mt-8 w-full bg-[#7CB987] text-white px-14 py-4 rounded-full text-lg font-semibold hover:bg-[#5a9768] transition-all"
+              >
+                Done
               </motion.button>
             </motion.div>
           )}
         </AnimatePresence>
       </div>
 
-      {/* Step dots */}
       <div className="fixed bottom-8 flex gap-2">
-        {steps.map((s, i) => (
+        {steps.map((currentStep, index) => (
           <div
-            key={s}
+            key={currentStep}
             className={`rounded-full transition-all ${
-              i === stepIndex ? 'w-6 h-2 bg-[#7CB987]' : i < stepIndex ? 'w-2 h-2 bg-[#7CB987] opacity-60' : 'w-2 h-2 bg-[#D1D5DB]'
+              index === stepIndex
+                ? 'w-6 h-2 bg-[#7CB987]'
+                : index < stepIndex
+                  ? 'w-2 h-2 bg-[#7CB987] opacity-60'
+                  : 'w-2 h-2 bg-[#D1D5DB]'
             }`}
           />
         ))}

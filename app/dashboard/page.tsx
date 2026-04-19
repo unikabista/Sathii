@@ -23,7 +23,13 @@ export default function Dashboard() {
     setProfile(p)
     setToday(t)
 
-    const query = p.skills?.join(' ') || p.titles?.[0] || p.type || 'software engineer'
+    const query =
+      p.preferredRoles?.join(' ') ||
+      p.suggestedRoles?.map((role) => role.title).join(' ') ||
+      [...(p.skills ?? []), ...(p.extraSkills ?? [])].join(' ') ||
+      p.titles?.[0] ||
+      p.type ||
+      'software engineer'
     fetchJobs(query).then((fetched) => {
       const withApplied = fetched.map((j) => ({ ...j, applied: t.applied.includes(j.id) }))
       setJobs(withApplied)
@@ -79,6 +85,11 @@ export default function Dashboard() {
           <p className="text-[#6B7280]">
             {loading ? 'Finding your best matches...' : `${jobs.length} opportunities, handpicked for you`}
           </p>
+          {!!profile.preferredRoles?.length && (
+            <p className="mt-2 text-sm text-[#6B7280]">
+              Focused on: <span className="font-medium text-[#2D2D2D]">{profile.preferredRoles.join(', ')}</span>
+            </p>
+          )}
           {today.mood && (
             <p className="text-sm text-[#9CA3AF] mt-2 italic">{greetings[today.mood]}</p>
           )}
@@ -148,6 +159,7 @@ export default function Dashboard() {
         <ResumeModal
           job={selectedJob}
           resumeText={profile.resumeText ?? ''}
+          profile={profile}
           onClose={() => setSelectedJob(null)}
         />
       )}
