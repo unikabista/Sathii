@@ -201,7 +201,7 @@ npm install
 Create `.env.local`:
 ```
 GEMINI_API_KEY=your_gemini_key_here
-ADZUNA_APP_ID=873fe712
+ADZUNA_APP_ID=your_key
 ADZUNA_APP_KEY=your_new_key_here
 ```
 
