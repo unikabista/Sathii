@@ -1,65 +1,95 @@
-import { MOCK_JOBS, Job } from './mockJobs'
+// Canonical filter shape — single source of truth for dashboard, drawer, and API
+export interface FilterState {
+  roles: string[]       // job titles to search for
+  level: string         // '' | 'Intern' | 'Entry Level' | 'Mid Level' | 'Senior' | 'Lead'
+  jobType: string[]     // 'fulltime' | 'parttime' | 'internship' | 'contract'
+  workModel: string[]   // 'remote' | 'hybrid' | 'onsite'  — empty = all
+  daysOld: number       // 1 | 3 | 7 | 14
+  country: string       // 'us' | 'gb' | 'ca' | 'au' | 'in'
+  city: string
+  excludedTitle: string
+  salaryMin: number
+  salaryMax: number
+}
 
-export type { Job }
+// Keep alias so existing FilterDrawer import doesn't break
+export type JobFilters = FilterState
 
-const AGGREGATOR_DOMAINS = ['indeed.com', 'linkedin.com', 'glassdoor.com', 'ziprecruiter.com', 'monster.com']
+export const DEFAULT_FILTER_STATE: FilterState = {
+  roles: [],
+  level: '',
+  jobType: [],
+  workModel: [],
+  daysOld: 14,
+  country: 'us',
+  city: '',
+  excludedTitle: '',
+  salaryMin: 0,
+  salaryMax: 200000,
+}
 
-function isAggregatorUrl(url: string): boolean {
+// Backward-compat alias used by older imports
+export const DEFAULT_FILTERS = DEFAULT_FILTER_STATE
+
+export interface Job {
+  id: string
+  title: string
+  company: string
+  location: string
+  applyUrl: string
+  salary: string | null
+  postedAt: string
+  workType: 'remote' | 'onsite' | 'hybrid'
+  description: string
+  employmentType: string
+  match: number
+  matchLabel: string
+  applied: boolean
+  source: 'adzuna' | 'himalayas' | 'mock'
+}
+
+export function getFilters(): FilterState {
+  if (typeof window === 'undefined') return DEFAULT_FILTER_STATE
   try {
-    const hostname = new URL(url).hostname.toLowerCase()
-    return AGGREGATOR_DOMAINS.some(domain => hostname === domain || hostname.endsWith('.' + domain))
+    const stored = localStorage.getItem('sathi_filters')
+    return stored ? { ...DEFAULT_FILTER_STATE, ...JSON.parse(stored) } : DEFAULT_FILTER_STATE
   } catch {
-    return false
+    return DEFAULT_FILTER_STATE
   }
 }
 
-function resolveApplyUrl(j: Record<string, unknown>): string | null {
-  const applyLink = j.job_apply_link ? String(j.job_apply_link) : null
-  const employerWebsite = j.employer_website ? String(j.employer_website) : null
-
-  if (applyLink && !isAggregatorUrl(applyLink)) return applyLink
-  if (employerWebsite && !isAggregatorUrl(employerWebsite)) return employerWebsite
-  return null
+export function saveFilters(fs: FilterState) {
+  if (typeof window === 'undefined') return
+  localStorage.setItem('sathi_filters', JSON.stringify(fs))
 }
 
-export async function fetchJobs(query: string, _location: string = 'remote'): Promise<Job[]> {
-  const apiKey = process.env.NEXT_PUBLIC_RAPIDAPI_KEY
-  if (!apiKey || apiKey === 'your_key_here') return MOCK_JOBS
+export function countActiveFilters(fs: FilterState): number {
+  let n = 0
+  if (fs.roles.length > 0) n++
+  if (fs.level) n++
+  if (fs.jobType.length > 0) n++
+  if (fs.workModel.length > 0) n++
+  if (fs.city.trim()) n++
+  if (fs.excludedTitle.trim()) n++
+  if (fs.salaryMin > 0 || fs.salaryMax < 200000) n++
+  if (fs.daysOld !== 14) n++
+  return n
+}
 
-  try {
-    const res = await fetch(
-      `https://jsearch.p.rapidapi.com/search?query=${encodeURIComponent(query)}&num_pages=1&date_posted=month`,
-      {
-        headers: {
-          'X-RapidAPI-Key': apiKey,
-          'X-RapidAPI-Host': 'jsearch.p.rapidapi.com',
-        },
-      }
-    )
-    if (!res.ok) throw new Error('API error')
-    const data = await res.json()
-    const jobs: Job[] = (data.data ?? [])
-      .map((j: Record<string, unknown>, i: number) => {
-        const applyUrl = resolveApplyUrl(j)
-        if (!applyUrl) return null
-        return {
-          id: String(j.job_id ?? i),
-          title: String(j.job_title ?? ''),
-          company: String(j.employer_name ?? ''),
-          location: j.job_is_remote ? 'Remote' : String(j.job_city ?? j.job_country ?? ''),
-          daysAgo: Math.floor((Date.now() - new Date(String(j.job_posted_at_datetime_utc ?? Date.now())).getTime()) / 86400000),
-          match: 70 + Math.floor(Math.random() * 25),
-          matchReason: 'Matches your skills and experience',
-          applyUrl,
-          applied: false,
-          description: String(j.job_description ?? '').slice(0, 300),
-          logo: String(j.employer_logo ?? ''),
-        }
-      })
-      .filter(Boolean)
-      .slice(0, 8) as Job[]
-    return jobs.length ? jobs : MOCK_JOBS
-  } catch {
-    return MOCK_JOBS
+export async function fetchJobs(
+  fs: FilterState,
+  profileSkills: string[] = [],
+  profileType: string = '',
+): Promise<Job[]> {
+  const res = await fetch('/api/jobs', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ filterState: fs, skills: profileSkills, profileType }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error ?? `HTTP ${res.status}`)
   }
+  const data = await res.json()
+  return data.jobs ?? []
 }
