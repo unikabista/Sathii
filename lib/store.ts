@@ -1,3 +1,5 @@
+import { Job } from './jobs'
+
 export interface SathiProfile {
   name?: string
   skills?: string[]
@@ -11,6 +13,11 @@ export interface SathiToday {
   mood: string
   goal: number
   applied: string[]
+  date: string
+}
+
+export interface AppliedLogEntry {
+  job: Job
   date: string
 }
 
@@ -52,4 +59,41 @@ export function incrementStreak() {
   const streak = getStreak() + 1
   localStorage.setItem('sathi_streak', String(streak))
   return streak
+}
+
+// Saved jobs (hearted)
+export function getSavedJobs(): Job[] {
+  if (typeof window === 'undefined') return []
+  try { return JSON.parse(localStorage.getItem('sathi_saved_jobs') ?? '[]') } catch { return [] }
+}
+
+export function saveJob(job: Job) {
+  const saved = getSavedJobs()
+  if (!saved.find(j => j.id === job.id)) {
+    saved.push(job)
+    localStorage.setItem('sathi_saved_jobs', JSON.stringify(saved))
+  }
+}
+
+export function unsaveJob(jobId: string) {
+  const saved = getSavedJobs().filter(j => j.id !== jobId)
+  localStorage.setItem('sathi_saved_jobs', JSON.stringify(saved))
+}
+
+export function isJobSaved(jobId: string): boolean {
+  return getSavedJobs().some(j => j.id === jobId)
+}
+
+// Applied log (persistent across days)
+export function getAppliedLog(): AppliedLogEntry[] {
+  if (typeof window === 'undefined') return []
+  try { return JSON.parse(localStorage.getItem('sathi_applied_log') ?? '[]') } catch { return [] }
+}
+
+export function logApplied(job: Job) {
+  const log = getAppliedLog()
+  if (!log.find(e => e.job.id === job.id)) {
+    log.unshift({ job, date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) })
+    localStorage.setItem('sathi_applied_log', JSON.stringify(log))
+  }
 }

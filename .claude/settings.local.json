@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx tsc *)",
+      "Bash(curl -s -H \"User-Agent: Mozilla/5.0 \\(Windows NT 10.0; Win64; x64\\) AppleWebKit/537.36 \\(KHTML, like Gecko\\) Chrome/124.0.0.0 Safari/537.36\" -H \"Accept: application/json\" \"https://himalayas.app/jobs/api/search?q=software+engineer&limit=2\")",
+      "Bash(curl -s \"https://api.adzuna.com/v1/api/jobs/us/search/1?app_id=873fe712&app_key=9ea24d4031593dac988f3db6ec7186ea&what=software+engineer&where=remote&sort_by=date&max_days_old=14&results_per_page=2\")",
+      "Bash(curl -s \"https://api.adzuna.com/v1/api/jobs/us/search/1?app_id=873fe712&app_key=9ea24d4031593dac988f3db6ec7186ea&what=software+engineer+remote&sort_by=date&max_days_old=14&results_per_page=2\")"
+    ]
+  }
+}
