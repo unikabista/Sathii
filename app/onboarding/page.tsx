@@ -20,6 +20,35 @@ const slideVariants = {
   exit: { opacity: 0, x: -40 },
 }
 
+function MoodFace({ mood }: { mood: Exclude<Mood, ''> }) {
+  const stroke = '#3A4144'
+  const mouth = {
+    drained: 'M46 62 Q56 54 66 62',
+    okay: 'M47 60 L65 60',
+    good: 'M45 57 Q56 66 67 57',
+    motivated: 'M43 56 Q56 70 69 56',
+  }[mood]
+
+  const eyebrow = mood === 'drained'
+
+  return (
+    <svg
+      viewBox="0 0 112 112"
+      aria-hidden="true"
+      className="h-24 w-24"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <circle cx="56" cy="56" r="42" stroke={stroke} strokeWidth="4" />
+      {eyebrow && <path d="M42 42 L49 39" stroke={stroke} strokeWidth="4" strokeLinecap="round" />}
+      {eyebrow && <path d="M63 39 L70 42" stroke={stroke} strokeWidth="4" strokeLinecap="round" />}
+      <circle cx="47" cy="48" r="4.5" fill={stroke} />
+      <circle cx="65" cy="48" r="4.5" fill={stroke} />
+      <path d={mouth} stroke={stroke} strokeWidth="4" strokeLinecap="round" />
+    </svg>
+  )
+}
+
 export default function Onboarding() {
   const router = useRouter()
   const [step, setStep] = useState<Step>('intro')
@@ -48,12 +77,13 @@ export default function Onboarding() {
     setResumeText(text)
 
     try {
-      const res = await fetch('/api/claude', {
+      const res = await fetch('/api/gemini', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ type: 'extract', text }),
       })
       const profile = await res.json()
+      if (!res.ok) throw new Error(profile.error || 'Resume extraction failed')
       const existing = JSON.parse(localStorage.getItem('sathi_profile') || '{}')
       localStorage.setItem('sathi_profile', JSON.stringify({ ...existing, ...profile, resumeText: text }))
     } catch {
@@ -240,11 +270,11 @@ export default function Onboarding() {
               <p className="text-[#6B7280] mb-10">No judgment — we&apos;ll set a goal that fits your energy.</p>
               <div className="grid grid-cols-2 gap-4">
                 {([
-                  { key: 'drained', emoji: '😔', label: 'Drained' },
-                  { key: 'okay', emoji: '😐', label: 'Okay' },
-                  { key: 'good', emoji: '🙂', label: 'Good' },
-                  { key: 'motivated', emoji: '🔥', label: 'Motivated' },
-                ] as { key: Mood; emoji: string; label: string }[]).map(({ key, emoji, label }) => (
+                  { key: 'drained', label: 'Drained' },
+                  { key: 'okay', label: 'Okay' },
+                  { key: 'good', label: 'Good' },
+                  { key: 'motivated', label: 'Motivated' },
+                ] as { key: Exclude<Mood, ''>; label: string }[]).map(({ key, label }) => (
                   <motion.button
                     key={key}
                     whileHover={{ scale: 1.05 }}
@@ -254,14 +284,14 @@ export default function Onboarding() {
                       setGoal(MOOD_GOALS[key])
                       setTimeout(next, 200)
                     }}
-                    className={`py-6 rounded-2xl border-2 flex flex-col items-center gap-2 transition-all ${
+                    className={`min-h-[190px] rounded-[2rem] border-[3px] flex flex-col items-center justify-center gap-4 transition-all ${
                       mood === key
-                        ? 'border-[#7CB987] bg-[#E8F5E9]'
+                        ? 'border-[#7CB987] bg-[#F4FBF5]'
                         : 'border-[#E5E7EB] bg-white hover:border-[#7CB987]'
                     }`}
                   >
-                    <span className="text-4xl">{emoji}</span>
-                    <span className="font-medium text-[#2D2D2D]">{label}</span>
+                    <MoodFace mood={key} />
+                    <span className="text-xl font-medium text-[#2D2D2D]">{label}</span>
                   </motion.button>
                 ))}
               </div>

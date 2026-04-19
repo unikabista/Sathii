@@ -17,7 +17,7 @@ export function ResumeModal({ job, resumeText, onClose }: ResumeModalProps) {
   async function generate() {
     setLoading(true)
     try {
-      const res = await fetch('/api/claude', {
+      const res = await fetch('/api/gemini', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -28,9 +28,14 @@ export function ResumeModal({ job, resumeText, onClose }: ResumeModalProps) {
         }),
       })
       const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Resume generation failed')
       setResult(data.resume ?? 'Could not generate resume. Please try again.')
-    } catch {
-      setResult('Failed to connect to AI. Please check your API key.')
+    } catch (error) {
+      setResult(
+        error instanceof Error
+          ? error.message
+          : 'Failed to connect to AI. Please check your API key.'
+      )
     }
     setLoading(false)
   }
@@ -75,7 +80,7 @@ export function ResumeModal({ job, resumeText, onClose }: ResumeModalProps) {
             <div className="flex-1 flex flex-col items-center justify-center text-center py-8">
               <div className="text-5xl mb-4">✨</div>
               <p className="text-[#6B7280] mb-6 max-w-sm">
-                Claude will tailor your resume to highlight the skills and experience most relevant to this role.
+                Gemini will tailor your resume to highlight the skills and experience most relevant to this role.
               </p>
               <motion.button
                 whileHover={{ scale: 1.03 }}
@@ -96,7 +101,7 @@ export function ResumeModal({ job, resumeText, onClose }: ResumeModalProps) {
                 className="w-12 h-12 rounded-full"
                 style={{ border: '3px solid #E8F5E9', borderTopColor: '#7CB987' }}
               />
-              <p className="text-[#6B7280]">Claude is tailoring your resume...</p>
+              <p className="text-[#6B7280]">Gemini is tailoring your resume...</p>
             </div>
           )}
 
